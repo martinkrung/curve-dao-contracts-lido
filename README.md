@@ -12,7 +12,7 @@ View the [documentation](https://curve.readthedocs.io/dao-overview.html) for a m
 
 ### Dependencies
 
-- [python3](https://www.python.org/downloads/release/python-368/) version 3.6 or greater, python3-dev
+- [python3](https://www.python.org/downloads/release/python-3818/) version 3.8 or greater, python3-dev
 - [vyper](https://github.com/vyperlang/vyper) version [0.2.4](https://github.com/vyperlang/vyper/releases/tag/v0.2.4)
 - [brownie](https://github.com/iamdefinitelyahuman/brownie) - tested with version [1.14.6](https://github.com/eth-brownie/brownie/releases/tag/v1.14.6)
 - [brownie-token-tester](https://github.com/iamdefinitelyahuman/brownie-token-tester) - tested with version [0.2.2](https://github.com/iamdefinitelyahuman/brownie-token-tester/releases/tag/v0.2.2)
@@ -20,12 +20,40 @@ View the [documentation](https://curve.readthedocs.io/dao-overview.html) for a m
 
 ### Setup
 
-To get started, first create and initialize a Python [virtual environment](https://docs.python.org/3/library/venv.html). Next, clone the repo and install the developer dependencies:
+Install python3 from scratch:
+
+```bash
+wget https://www.python.org/ftp/python/3.8.18/Python-3.8.18.tgz
+tar zxvf Python-3.8.18.tgz
+sudo cp -r Python-3.8.18 /usr/bin
+cd /usr/bin/Python-3.8.18/
+sudo ./configure --enable-loadable-sqlite-extensions
+sudo make
+sudo make install
+make clean
+```
+
+Next, clone the repo, create and initialize a Python [virtual environment](https://docs.python.org/3/library/venv.html).
 
 ```bash
 git clone https://github.com/curvefi/curve-dao-contracts.git
 cd curve-dao-contracts
+python3.8 -m venv .venv
+source .venv/bin/activate
+```
+
+Then install the developer dependencies:
+
+```bash
 pip install -r requirements.txt
+# upgrade brownie to 1.19.3 avoid this bug https://github.com/eth-brownie/brownie/issues/1118
+pip install --upgrade eth-brownie
+```
+
+Install ganache-cli:
+
+```bash
+npm install
 ```
 
 ### Running the Tests
@@ -42,6 +70,16 @@ To run only the unit tests or integration tests:
 brownie test tests/unitary
 brownie test tests/integration
 ```
+
+
+### use environment variables for api keys
+
+activate 
+
+```bash
+source .env
+```
+see .env-sample
 
 ## Deployment
 

@@ -112,11 +112,11 @@ def deployContractsOldPool():
 
 
 
-    CurveLiquidityFarmingManagerEwm = CurveLiquidityFarmingManager.deploy({'from': accounts[0]})
+    CurveLiquidityFarmingManagerEvm = CurveLiquidityFarmingManager.deploy({'from': accounts[0]})
 
 
     owner = "0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c" # Lido agent
-    curve_liquidity_farming_manager = CurveLiquidityFarmingManagerEwm # old one 0x753D5167C31fBEB5b49624314d74A957Eb27170
+    curve_liquidity_farming_manager = CurveLiquidityFarmingManagerEvm # old one 0x753D5167C31fBEB5b49624314d74A957Eb27170
     reward_token_address = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0" # wsteth
     staking_token = "0x06325440D014e39736583c165C2963BA99fAf14E" # Curve.fi ETH/stETH (steCRV) Token 
     rewards_duration = 86400 * 1 # in Seconds? can be reset with setRewardsDuration()
@@ -133,9 +133,9 @@ def deployContractsOldPool():
 
     
     # set rewards_contract to StakingRewards
-    CurveLiquidityFarmingManagerEwm.set_rewards_contract(StakingRewardsEvm)
+    CurveLiquidityFarmingManagerEvm.set_rewards_contract(StakingRewardsEvm)
     # set ownership to Lido agent
-    CurveLiquidityFarmingManagerEwm.transfer_ownership(owner)
+    CurveLiquidityFarmingManagerEvm.transfer_ownership(owner)
 
     signature_old = "a694fc3a2e1a7d4d3d18b9120000000000000000000000000000000000000000"
     deposit_sig =  StakingRewardsEvm.stake.signature  
@@ -165,7 +165,89 @@ def deployContractsOldPool():
     return(StakingRewardsEvm, signature, reward_tokens)
 
 
-StakingRewardsEvm, signature, reward_tokens = deployContractsOldPool()
+def checkDeployedContractsOldPools():
+
+    #owner = "0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c" # Lido agent
+
+    reward_multisig = distributor_address # Lido: Rewards Committee Multisig
+
+    deployer = "0xbF6b125933EC0da01Ac79486935453e534fDc7e1"
+
+    # CurveLiquidityFarmingManager.vy Deployed by Lido https://etherscan.io/address/0x9d81153ae611aeb53e5f137b701c67c2ebffcdae
+
+    CurveLiquidityFarmingManager = "0x9d81153ae611aeb53e5f137b701c67c2ebffcdae"
+
+    CurveLiquidityFarmingManagerEvm = Contract(CurveLiquidityFarmingManager)
+
+    # StakingRewards.sol Deployed by Lido https://etherscan.io/address/0x4f48031b0ef8accea3052af00a3279fba31b50d8
+
+    StakingRewards = "0x4f48031b0ef8accea3052af00a3279fba31b50d8"
+
+    StakingRewardsEvm = Contract(StakingRewards)
+
+    print(f"StakingRewardsAddress: {StakingRewardsEvm}")
+
+    try:
+        StakingRewardsEvm.setRewardsDuration(86400*2, {'from': accounts[0]})
+    except:
+        print(f"This error is expectd as only owner can call setRewardsDuration() \n ")
+
+    try:
+        StakingRewardsEvm.setRewardsDuration(86400*2, {'from': deployer})
+    except:
+        print(f"This error is expectd as only owner can call setRewardsDuration() \n ")
+
+    try:
+        StakingRewardsEvm.setRewardsDuration(86400*2, {'from': reward_multisig}) 
+    except:
+        print(f"This error is expectd as only owner can call setRewardsDuration() \n ")
+
+    
+    # set rewards_contract to StakingRewards
+    CurveLiquidityFarmingManagerEvm.set_rewards_contract(StakingRewardsEvm, {'from': deployer})
+    # set ownership to Lido agent
+    CurveLiquidityFarmingManagerEvm.transfer_ownership(reward_multisig, {'from': deployer})
+
+    signature_old = "a694fc3a2e1a7d4d3d18b9120000000000000000000000000000000000000000"
+    deposit_sig =  StakingRewardsEvm.stake.signature
+    withdraw_sig = StakingRewardsEvm.withdraw.signature
+    claim_sig = StakingRewardsEvm.getReward.signature
+
+    print(f"deposit_sig: {deposit_sig}")
+    print(f"withdraw_sig: {withdraw_sig}")
+    print(f"claim_sig: {claim_sig}")
+
+    signature =  deposit_sig[2:] + withdraw_sig[2:] + claim_sig[2:] + "0000000000000000000000000000000000000000"
+
+    print(f"signature_old: {signature_old}")
+
+    print(f"signature: {signature}")
+
+
+    if signature != signature_old:
+        print(f"Signature is different, that should not be \n ")
+        sys.exit()
+
+    empty = "0x0000000000000000000000000000000000000000"
+    reward_tokens = [reward_token_address, empty, empty, empty, empty, empty, empty, empty]
+
+    # gauge_old = "0x182B723a58739a9c974cFDB385ceaDb237453c28"
+    # gauge_old_evm = Contract(gauge_old)
+    # gauge_old_evm.set_rewards(StakingRewardsEvm, signature, reward_tokens, {'from': gauge_old_admin}   )
+
+    # gauge_old_admin_evm = Contract(gauge_old_admin)
+    # gauge_old_admin_evm.set_rewards(gauge_old, StakingRewardsEvm, signature, reward_tokens, {'from': TARGET["agent"]})
+
+    return(StakingRewardsEvm, signature, reward_tokens)
+
+
+# with local deployed contracts
+# StakingRewardsEvm, signature, reward_tokens = deployContractsOldPool()
+
+
+# with mainnet deployed contracts
+StakingRewardsEvm, signature, reward_tokens = checkDeployedContractsOldPools()
+
 
 ACTIONS = [
     # token=tbtc "0x18084fbA666a33d37592fA2633fD49a74DD93a88",
@@ -252,6 +334,7 @@ def pre_simulate():
     '''
     # wsteh
     reward_token_address = "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"
+
     # Lido: Rewards Committee Multisig 
     distributor_address = "0x87D93d9B2C672bf9c9642d853a8682546a5012B5"
 

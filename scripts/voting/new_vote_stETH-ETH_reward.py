@@ -105,12 +105,11 @@ gauge_factory_admin_ng = "0x742C3cF9Af45f91B109a81EfEaf11535ECDe9571"
 gauge_tricryptolama = "0x60d3d7ebbc44dc810a743703184f062d00e6db7e"
 
 
-def deployContractsOldPool():
+
+def deploy_oldpools_contracts():
 
     # msg.sender is set to owner
     # start with this, because we need curve_liquidity_farming_manager address from deployed StakingRewards
-
-
 
     CurveLiquidityFarmingManagerEvm = CurveLiquidityFarmingManager.deploy({'from': accounts[0]})
 
@@ -165,7 +164,7 @@ def deployContractsOldPool():
     return(StakingRewardsEvm, signature, reward_tokens)
 
 
-def checkDeployedContractsOldPools():
+def mainnet_oldpools_contracts():
 
     #owner = "0x3e40D73EB977Dc6a537aF587D48316feE66E9C8c" # Lido agent
 
@@ -242,11 +241,11 @@ def checkDeployedContractsOldPools():
 
 
 # with local deployed contracts
-# StakingRewardsEvm, signature, reward_tokens = deployContractsOldPool()
+# StakingRewardsEvm, signature, reward_tokens = deploy_oldpools_contracts()
 
 
 # with mainnet deployed contracts
-StakingRewardsEvm, signature, reward_tokens = checkDeployedContractsOldPools()
+StakingRewardsEvm, signature, reward_tokens = mainnet_oldpools_contracts()
 
 
 ACTIONS = [

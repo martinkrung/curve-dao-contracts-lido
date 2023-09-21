@@ -697,7 +697,7 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
 
 @external
 @nonreentrant("lock")
-def deposit_reward_token(_reward_token: address, _amount: uint256, _epoch: uint256 = WEEK)):
+def deposit_reward_token(_reward_token: address, _amount: uint256, _epoch: uint256 = WEEK):
     assert msg.sender == self.reward_data[_reward_token].distributor
     assert _epoch >= WEEK
 

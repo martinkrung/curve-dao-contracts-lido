@@ -75,11 +75,14 @@ distributor_address = "0x87D93d9B2C672bf9c9642d853a8682546a5012B5"
 # old steth pool
 gauge_old = "0x182B723a58739a9c974cFDB385ceaDb237453c28"
 gauge_old_admin = "0x519AFB566c05E00cfB9af73496D00217A630e4D5"
+old_lp_token = ""
 
 # stETH ng
 gauge_ng = "0x79F21BC30632cd40d2aF8134B469a0EB4C9574AA"
 gauge_factory_ng = "0xB9fC157394Af804a3578134A6585C0dc9cc990d4"
 gauge_factory_admin_ng = "0x742C3cF9Af45f91B109a81EfEaf11535ECDe9571"
+ng_lp_token = "0x21E27a5E5513D6e65C4f830167390997aA84843a"
+ng_lp_whale = "0x79F21BC30632cd40d2aF8134B469a0EB4C9574AA"
 
 
 # Optimism - Curve - wstETH-ETH:
@@ -103,7 +106,8 @@ gauge_factory_admin_ng = "0x742C3cF9Af45f91B109a81EfEaf11535ECDe9571"
 # Pool 0x2889302a794da87fbf1d6db415c1492194663d13
 
 gauge_tricryptolama = "0x60d3d7ebbc44dc810a743703184f062d00e6db7e"
-
+tricryptolama_lp_token = "0x2889302a794dA87fBF1D6Db415C1492194663D13"
+tricryptolama_lp_whale = "0x60d3d7eBBC44Dc810A743703184f062d00e6dB7e"
 
 
 def deploy_oldpools_contracts():
@@ -388,6 +392,52 @@ def pre_simulate():
     print(read)
 
 
+def test_farm_token(gauge, reward_token, distributor, lp_token, lp_token_whale):
+
+    # send LP token to contract and test farming reward
+    
+    gauge_evm = Contract(gauge)
+    reward_token_evm = Contract(reward_token)
+    lp_token_evm = Contract(lp_token)
+
+    # send reward token
+    amount = 100 * 10**18
+    reward_token_evm.approve(gauge, amount, {'from': distributor} )
+    gauge_evm.deposit_reward_token(reward_token, 50 * 10**18,  {'from': distributor} )
+ 
+    # deposit lp token
+    lp_token_whale = accounts.at(lp_token_whale, force=True)    
+    lp_amount = 200 * 10**18
+    lp_token_evm = Contract(lp_token)
+    lp_token_evm.approve(gauge, lp_amount, {'from': accounts[0]} )
+    # lp_token_evm.transfer.info()
+    lp_token_evm.transfer(accounts[0], lp_amount, {'from': lp_token_whale})
+
+    gauge_evm.deposit(lp_amount, {'from': accounts[0]})
+
+
+    print( reward_token_evm.balanceOf(accounts[0]) )
+
+    for day in range(1 , 12):
+        print(f"\nafter day: {day} ------------------------------------------------------------------")
+        chain.sleep(86400)
+        # claimable_reward = arbi_gauge_evm.claimable_reward(accounts[0], arbi_reward_token_address)/10**18
+        # print(f"claimable_reward() {claimable_reward}")
+        balance = reward_token_evm.balanceOf(accounts[0])/10**18
+        balance_before = balance
+        gauge_evm.claim_rewards({'from': accounts[0]} )
+        balance = reward_token_evm.balanceOf(accounts[0])/10**18
+        print(f"wallet balance before claim {balance_before}")
+        print(f"wallet balance after claim {balance}")
+        if day == 4:
+            gauge_evm.deposit_reward_token(reward_token, 50 * 10**18,  {'from': distributor} )
+        diff = balance - balance_before
+        print(f"wallet balance diff {diff}")
+        claimed_reward = gauge_evm.claimed_reward(accounts[0], reward_token)/10**18
+        print(f"claimed_reward() {claimed_reward}")
+
+
+
 def simulate():
     # only do this if the VECRV_WHALE is not set
     if VECRV_WHALE is None:
@@ -425,3 +475,9 @@ def simulate():
 
     # moment of truth - execute the vote!
     aragon.executeVote(vote_id, {"from": top_holder})
+
+    # stETH new
+    test_farm_token(gauge_ng, reward_token_address, distributor_address,  ng_lp_token, ng_lp_whale)
+
+    # tricryptolama
+    test_farm_token(gauge_tricryptolama, reward_token_address, distributor_address,  tricryptolama_lp_token, tricryptolama_lp_whale)

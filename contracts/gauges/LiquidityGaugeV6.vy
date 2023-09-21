@@ -697,8 +697,9 @@ def set_reward_distributor(_reward_token: address, _distributor: address):
 
 @external
 @nonreentrant("lock")
-def deposit_reward_token(_reward_token: address, _amount: uint256):
+def deposit_reward_token(_reward_token: address, _amount: uint256, _epoch: uint256 = WEEK)):
     assert msg.sender == self.reward_data[_reward_token].distributor
+    assert _epoch >= WEEK
 
     self._checkpoint_rewards(ZERO_ADDRESS, self.totalSupply, False, ZERO_ADDRESS)
 
@@ -717,14 +718,14 @@ def deposit_reward_token(_reward_token: address, _amount: uint256):
 
     period_finish: uint256 = self.reward_data[_reward_token].period_finish
     if block.timestamp >= period_finish:
-        self.reward_data[_reward_token].rate = _amount / WEEK
+        self.reward_data[_reward_token].rate = _amount / _epoch
     else:
         remaining: uint256 = period_finish - block.timestamp
         leftover: uint256 = remaining * self.reward_data[_reward_token].rate
-        self.reward_data[_reward_token].rate = (_amount + leftover) / WEEK
+        self.reward_data[_reward_token].rate = (_amount + leftover) / _epoch
 
     self.reward_data[_reward_token].last_update = block.timestamp
-    self.reward_data[_reward_token].period_finish = block.timestamp + WEEK
+    self.reward_data[_reward_token].period_finish = block.timestamp + _epoch
 
 
 @external

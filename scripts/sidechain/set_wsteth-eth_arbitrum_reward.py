@@ -67,7 +67,7 @@ def simulate():
     distributor, period_finish, rate, last_update, integral = arbi_gauge_evm.reward_data(arbi_reward_token_address)
     print(f"reward_data({arbi_reward_token_address}): distributor: {distributor}, period_finish: {period_finish}, rate: {rate}, last_update: {last_update}, integral: {integral}")
 
-    # send LP token to contract and test 
+    # send LP token to contract and test farming reward
     lp_token = "0xDbcD16e622c95AcB2650b38eC799f76BFC557a0b"
     lb_otken_whale = accounts.at("0x098ef55011b6b8c99845128114a9d9159777d697", force=True)
     

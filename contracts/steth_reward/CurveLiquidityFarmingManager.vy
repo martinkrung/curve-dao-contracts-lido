@@ -12,7 +12,7 @@ interface StakingRewards:
 
 owner: public(address)
 rewards_contract: public(address)
-wsteth_token: constant(address) = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0
+ldo_token: constant(address) = 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32
 
 
 @external
@@ -58,16 +58,16 @@ def start_next_rewards_period():
     """
     @notice
         Starts the next rewards period of duration `rewards_contract.rewardsDuration()`,
-        distributing `wsteth_token.balanceOf(self)` tokens throughout the period. The current
+        distributing `ldo_token.balanceOf(self)` tokens throughout the period. The current
         rewards period must be finished by this time.
     """
     rewards: address = self.rewards_contract
-    amount: uint256 = ERC20(wsteth_token).balanceOf(self)
+    amount: uint256 = ERC20(ldo_token).balanceOf(self)
 
     assert rewards != ZERO_ADDRESS and amount != 0, "manager: rewards disabled"
     assert self._is_rewards_period_finished(rewards), "manager: rewards period not finished"
 
-    ERC20(wsteth_token).approve(rewards, amount)
+    ERC20(ldo_token).approve(rewards, amount)
     StakingRewards(rewards).notifyRewardAmount(amount, self)
 
 

@@ -1,6 +1,22 @@
 1c1
-< # @version 0.3.9
+< # @version 0.2.8
 ---
-> # @version 0.2.8
-7d6
-< # Code deploy by Lido at https://etherscan.io/address/0x9d81153ae611aeb53e5f137b701c67c2ebffcdae
+> # @version 0.3.9
+6a7
+> # Code deploy by Lido at https://etherscan.io/address/0x9d81153ae611aeb53e5f137b701c67c2ebffcdae
+15c16
+< ldo_token: constant(address) = 0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32
+---
+> wsteth_token: constant(address) = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0
+61c62
+<         distributing `ldo_token.balanceOf(self)` tokens throughout the period. The current
+---
+>         distributing `wsteth_token.balanceOf(self)` tokens throughout the period. The current
+65c66
+<     amount: uint256 = ERC20(ldo_token).balanceOf(self)
+---
+>     amount: uint256 = ERC20(wsteth_token).balanceOf(self)
+70c71
+<     ERC20(ldo_token).approve(rewards, amount)
+---
+>     ERC20(wsteth_token).approve(rewards, amount)

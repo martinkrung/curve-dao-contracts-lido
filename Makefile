@@ -14,6 +14,8 @@ import_networks:
 mainnet_reward:
 	brownie run scripts/voting/new_vote_stETH-ETH_reward.py simulate --network hardhat-fork-curve
 
+mainnet_decode:
+	brownie run scripts/voting/decode_vote.py --network hardhat-fork-curve
 
 arbitrum_reward:
 	brownie run scripts/sidechain/set_wsteth-eth_arbitrum_reward.py simulate --network arbitrum-fork

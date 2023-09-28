@@ -16,6 +16,9 @@ VECRV_WHALE = os.getenv('VECRV_WHALE')
 APIKEY_ETHPLORER = os.getenv('APIKEY_ETHPLORER')
 IPFS_PROJECT_ID = os.getenv('IPFS_PROJECT_ID')
 IPFS_PROJECT_SECRET = os.getenv('IPFS_PROJECT_SECRET')
+MAINNET_ADDRESS = os.getenv('MAINNET_ADDRESS')
+
+
 
 
 # this script is used to prepare, simulate and broadcast votes within Curve's DAO
@@ -49,8 +52,9 @@ EMERGENCY_DAO = {
 TARGET = CURVE_DAO_OWNERSHIP
 
 # address to create the vote from - you will need to modify this prior to mainnet use
-# SENDER = accounts[0]
-SENDER = accounts.at("0x425d16B0e08a28A3Ff9e4404AE99D78C0a076C5A", force=True)  # accounts[0]
+SENDER = accounts[0]
+
+# SENDER = accounts.at('MAINNET_ADDRESS', force=True)
 
 # a list of calls to perform in the vote, formatted as a lsit of tuples
 # in the format (target, function name, *input args).
@@ -79,7 +83,7 @@ gauge_old_token_name = "ETH/stETH Gauge Deposit Token"
 gauge_old_admin = "0x519AFB566c05E00cfB9af73496D00217A630e4D5"
 old_lp_token = "0x06325440D014e39736583c165C2963BA99fAf14E"
 old_lp_token_name = "ETH/stETH LP Token"
-old_lp_whale = "0xb718727E7C8A4646D41d8b0BE5e8e2c028B9EFAA"
+old_lp_whale = "0x1C3CB7e3920C77EBA162Cf044F418a854C12fFEf"
 old_reward_token = "0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32" # lido token
 old_reward_token_name = "LDO"
 
@@ -243,12 +247,29 @@ def mainnet_oldpools_contracts():
     return(StakingRewardsEvm, signature, reward_tokens, CurveLiquidityFarmingManagerEvm)
 
 
-# with local deployed contracts
-# StakingRewardsEvm, signature, reward_tokens = deploy_oldpools_contracts()
+def mainnet_oldpools_contracts_hardcoded():
+
+    CurveLiquidityFarmingManager = "0x9d81153ae611aeb53e5f137b701c67c2ebffcdae"
+
+    StakingRewards = "0x4f48031b0ef8accea3052af00a3279fba31b50d8"
+
+    signature = "a694fc3a2e1a7d4d3d18b9120000000000000000000000000000000000000000"
+
+    empty = "0x0000000000000000000000000000000000000000"
+
+    reward_tokens = [old_reward_token, reward_token_address, empty, empty, empty, empty, empty, empty]
+
+    return(StakingRewards, signature, reward_tokens, CurveLiquidityFarmingManager)
 
 
-# with mainnet deployed contracts
-StakingRewardsEvm, signature, reward_tokens, CurveLiquidityFarmingManagerEvm = mainnet_oldpools_contracts()
+# if mainnet
+if network.show_active() == 'mainnet' or network.show_active() == 'frame':
+    StakingRewardsEvm, signature, reward_tokens, CurveLiquidityFarmingManagerEvm = mainnet_oldpools_contracts_hardcoded()
+else:
+    # with mainnet deployed contracts
+    StakingRewardsEvm, signature, reward_tokens, CurveLiquidityFarmingManagerEvm = mainnet_oldpools_contracts()
+    # with local deployed contracts
+    # StakingRewardsEvm, signature, reward_tokens = deploy_oldpools_contracts()
 
 
 ACTIONS = [
@@ -288,15 +309,26 @@ def prepare_evm_script():
 
 
 def make_vote(sender=SENDER):
-    if network.show_active() == 'mainnet':
-        kw = {'from': sender, 'priority_fee': '1 gwei'}
+
+    if network.show_active() == 'mainnet' or network.show_active() == 'frame' :
+        kw = {'from': sender, 'priority_fee': '1 gwei' }
+        # kw = {'from': sender, 'priority_fee': '1 gwei', 'gas_price' : '9 gwei', 'gas_limit' : '1000000', 'Nonce' : 21, 'allow_revert' : True}
+
     else:
         kw = {'from': sender}
-    text = json.dumps({"text": DESCRIPTION})
-    session = requests.Session()
-    session.auth = (IPFS_PROJECT_ID, IPFS_PROJECT_SECRET)
-    response = session.post("https://ipfs.infura.io:5001/api/v0/add", files={"file": text})
-    ipfs_hash = response.json()["Hash"]
+
+    # for testing
+    fix_ipfs_hash = "QmbmKk7xDjpsZAuGwBVCCCaLudPrJ42uKWcHmavgo5Ba74"
+
+    if fix_ipfs_hash == "QmbmKk7xDjpsZAuGwBVCCCaLudPrJ42uKWcHmavgo5Ba74":
+        ipfs_hash = fix_ipfs_hash
+    else:
+        text = json.dumps({"text": DESCRIPTION})
+        session = requests.Session()
+        session.auth = (IPFS_PROJECT_ID, IPFS_PROJECT_SECRET)
+        response = session.post("https://ipfs.infura.io:5001/api/v0/add", files={"file": text})
+        ipfs_hash = response.json()["Hash"]
+
     print(f"ipfs hash: {ipfs_hash}")
     print(f"ipfs url: https://ipfs.io/ipfs/{ipfs_hash}")
 
@@ -314,17 +346,16 @@ def make_vote(sender=SENDER):
         tx = Contract(TARGET["forwarder"]).forward(evm_script, kw)
     else:
         print(f"Target: {aragon.address}\nEVM script: {evm_script}")
+
         tx = aragon.newVote(evm_script, f"ipfs:{ipfs_hash}", False, False, kw)
 
     vote_id = tx.events["StartVote"]["voteId"]
 
     print(f"\nSuccess! Vote ID: {vote_id}")
 
-    decode_vote(aragon, vote_id)
-
     return vote_id
 
-def test_farm_token(gauge, reward_token, distributor, lp_token, lp_token_whale):
+def test_farm_token(gauge, reward_token, distributor, lp_token, lp_token_whale, gauge_token_holder = "0x"):
 
     # send LP token to contract and test farming reward
     
@@ -339,40 +370,64 @@ def test_farm_token(gauge, reward_token, distributor, lp_token, lp_token_whale):
     amount = 120 * 10**18
     reward_token_evm.approve(gauge, amount, {'from': distributor} )
     gauge_evm.deposit_reward_token(reward_token, 20 * 10**18,  {'from': distributor} )
- 
+   
+
     # deposit lp token
-    lp_token_whale = accounts.at(lp_token_whale, force=True)    
-    lp_amount = 200 * 10**18
-    lp_token_evm = Contract(lp_token)
-    lp_token_evm.approve(gauge, lp_amount, {'from': accounts[0]} )
-    # lp_token_evm.transfer.info()
-    lp_token_evm.transfer(accounts[0], lp_amount, {'from': lp_token_whale})
+    if gauge_token_holder == "0x":
+        lp_account = accounts[0]
+        lp_token_whale = accounts.at(lp_token_whale, force=True)    
+        
+        lp_amount = 200 * 10**18
+        
+        lp_token_evm.approve(gauge, lp_amount, {'from': lp_account} )
+        # lp_token_evm.transfer.info()    
+        lp_token_evm.transfer(lp_account, lp_amount, {'from': lp_token_whale})
 
-    getBalance("balance before gauge.deposit()", lp_token_evm, accounts[0], lp_token_name)
-    gauge_evm.deposit(lp_amount, {'from': accounts[0]})
-    getBalance("balance after gauge.deposit()", lp_token_evm, accounts[0], lp_token_name)
+        getBalance("balance before gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+        gauge_evm.deposit(lp_amount, {'from': lp_account})
+        getBalance("balance after gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+        print( reward_token_evm.balanceOf(lp_account) )
 
-    print( reward_token_evm.balanceOf(accounts[0]) )
+    else:
+        # with existing lp in gauge
+        lp_account = accounts.at(gauge_token_holder, force=True)   
 
+        lp_amount = 1 * 10**18
+        
+        lp_token_evm.approve(gauge, lp_amount, {'from': lp_account} )
+        #gauge_evm.approve(lp_token, lp_amount, {'from': lp_account} )
+
+        # lp_token_evm.transfer(lp_account, lp_amount, {'from': lp_token_whale})
+        '''
+        # deposit and withdraw gives a small reward on day 1 (reward of 1 block)
+        getBalance("balance before gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+        #gauge_evm.deposit(lp_amount, {'from': lp_account})
+        getBalance("balance after gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+
+        getBalance("balance before gauge.withdraw()", lp_token_evm, lp_account, lp_token_name)
+        #gauge_evm.withdraw(lp_amount, {'from': lp_account})
+        getBalance("balance after withdraw.withdraw()", lp_token_evm, lp_account, lp_token_name)
+        '''
+        
     for day in range(1 , 12):
         print(f"\nafter day: {day} ------------------------------------------------------------------")
         chain.sleep(86400)
-        # claimable_reward = arbi_gauge_evm.claimable_reward(accounts[0], arbi_reward_token_address)/10**18
+        # claimable_reward = arbi_gauge_evm.claimable_reward(lp_account, arbi_reward_token_address)/10**18
         # print(f"claimable_reward() {claimable_reward}")
 
-        balance_before = getBalance("balance before gauge.claim_rewards()", reward_token_evm, accounts[0], reward_token_name)
-        gauge_evm.claim_rewards({'from': accounts[0]} )
-        balance = getBalance("balance after gauge.claim_rewards()", reward_token_evm, accounts[0], reward_token_name)
+        balance_before = getBalance("balance before gauge.claim_rewards()", reward_token_evm, lp_account, reward_token_name)
+        gauge_evm.claim_rewards({'from': lp_account} )
+        balance = getBalance("balance after gauge.claim_rewards()", reward_token_evm, lp_account, reward_token_name)
 
         diff = balance - balance_before
         print(f"balance diff for {reward_token_address_name}: {diff/10**18}")
 
         if day == 4:
-            balance = getBalance("balance before gauge.deposit_reward_token()", reward_token_evm, accounts[0], lp_token_name)
+            balance = getBalance("balance before gauge.deposit_reward_token()", reward_token_evm, lp_account, lp_token_name)
             gauge_evm.deposit_reward_token(reward_token, 40 * 10**18,  {'from': distributor} )
-            balance = getBalance("balance after gauge.deposit_reward_token()", reward_token_evm, accounts[0], lp_token_name)
+            balance = getBalance("balance after gauge.deposit_reward_token()", reward_token_evm, lp_account, lp_token_name)
 
-        claimed_reward = gauge_evm.claimed_reward(accounts[0], reward_token)/10**18
+        claimed_reward = gauge_evm.claimed_reward(lp_account, reward_token)/10**18
         print(f"claimed_reward() {claimed_reward}")
 
 
@@ -396,22 +451,31 @@ def start_steth_old(gauge, reward_token, distributor, lp_token, lp_token_whale, 
     lp_token_whale = accounts.at(lp_token_whale, force=True)    
     
     lp_amount = 200 * 10**18
+    if False:
+        lp_account = accounts[0]
+        
+
+        lp_token_evm.approve(gauge, lp_amount, {'from': lp_account} )
+
+        getBalance("balance before lp_token_evm.transfer()", lp_token_evm, lp_token_whale, lp_token_name)
+        getBalance("balance before lp_token_evm.transfer()", gauge_evm, lp_token_whale, gauge_token_name)
     
-    lp_token_evm.approve(gauge, lp_amount, {'from': accounts[0]} )
-    lp_token_evm.transfer(accounts[0], lp_amount, {'from': lp_token_whale})
+        lp_token_evm.transfer(lp_account, lp_amount, {'from': lp_token_whale})
 
-    # lp_token_evm.approve(StakingRewardsEvm, lp_amount, {'from': accounts[0]} )
-    # lp_tokenlp_token_evm.approve(accounts[0], lp_amount, {'from': accounts[0]} )
+        # lp_token_evm.approve(StakingRewardsEvm, lp_amount, {'from': lp_account} )
+        # lp_tokenlp_token_evm.approve(lp_account, lp_amount, {'from': lp_account} )
 
-    getBalance("balance before gauge.deposit()", lp_token_evm, accounts[0], lp_token_name)
-    getBalance("balance before gauge.deposit()", gauge_evm, accounts[0], gauge_token_name)
-    gauge_evm.deposit(lp_amount, {'from': accounts[0]})
-    getBalance("balance after gauge.deposit()", lp_token_evm, accounts[0], lp_token_name)
-    getBalance("balance before gauge.deposit()", gauge_evm, accounts[0], gauge_token_name)
+        getBalance("balance before gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+        getBalance("balance before gauge.deposit()", gauge_evm, lp_account, gauge_token_name)
+        gauge_evm.deposit(lp_amount, {'from': lp_account})
+        getBalance("balance after gauge.deposit()", lp_token_evm, lp_account, lp_token_name)
+        getBalance("balance before gauge.deposit()", gauge_evm, lp_account, gauge_token_name)
+    else:
+        lp_account = "0xc2720997ea2ea9baad61e8f7de8ca3b5a1bbe1b3"
 
-
+    # with Lido reward unwithdrawed
     old_staking_account = "0xc2720997ea2ea9baad61e8f7de8ca3b5a1bbe1b3"
-
+    '''
     print(f"old_staking_account: {old_staking_account}" )
 
     ad_with_old_reward = accounts.at(old_staking_account, force=True) 
@@ -419,20 +483,19 @@ def start_steth_old(gauge, reward_token, distributor, lp_token, lp_token_whale, 
     # deposit withdraws old LDO token
     gauge_evm.deposit(10 * 10**18, {'from': ad_with_old_reward})
     getBalance("balance after gauge.deposit()", lp_token_evm, ad_with_old_reward, lp_token_name)
-
-
-    # print( reward_token_evm.balanceOf(accounts[0]) )
+    '''
+    # print( reward_token_evm.balanceOf(lp_account) )
 
     for day in range(1 , 15):
         print(f"\nafter day: {day} ------------------------------------------------------------------")
         chain.sleep(86400)
         # also claims token
-        # claimable eward = gauge_evm.claimable_reward(accounts[0], reward_token )/10**18
+        # claimable eward = gauge_evm.claimable_reward(lp_account, reward_token )/10**18
         # print(f"claimable_reward() {claimable_reward}")
 
-        balance_before = getBalance("balance before gauge.claim_rewards()", reward_token_evm, accounts[0], reward_token_name)
-        gauge_evm.claim_rewards({'from': accounts[0]} )
-        balance = getBalance("balance after gauge.claim_rewards()", reward_token_evm, accounts[0], reward_token_name)
+        balance_before = getBalance("balance before gauge.claim_rewards()", reward_token_evm, lp_account, reward_token_name)
+        gauge_evm.claim_rewards({'from': lp_account} )
+        balance = getBalance("balance after gauge.claim_rewards()", reward_token_evm, lp_account, reward_token_name)
 
         diff = balance - balance_before
         print(f"Belance diff for wstETH: {diff/10**18}")
@@ -445,30 +508,203 @@ def start_steth_old(gauge, reward_token, distributor, lp_token, lp_token_whale, 
             except:
                 print(f" if not finished, will fail, see error above")
 
-        if day == 10:
+        if day == 10:   
+            old_reward_token = Contract('0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32')
+            old_reward_token_name = "LDO"
+            empty = "0x0000000000000000000000000000000000000000"
+            reward_tokens = [old_reward_token, empty, empty, empty, empty, empty, empty, empty]
+            getBalance("balance before gauge.claim_historic_rewards()", old_reward_token, old_staking_account, old_reward_token_name)
+            gauge_evm.claim_historic_rewards(reward_tokens, {'from': lp_account})
+
+            getBalance("balance after gauge.claim_historic_rewards", old_reward_token, old_staking_account, old_reward_token_name)
+
             # withdraw half of lp
-            getBalance("balance before gauge.withdraw()", lp_token_evm, accounts[0], lp_token_name)
-            getBalance("balance before gauge.withdraw()", gauge_evm, accounts[0], gauge_token_name)
+            getBalance("balance before gauge.withdraw()", lp_token_evm, lp_account, lp_token_name)
+            getBalance("balance before gauge.withdraw()", gauge_evm, lp_account, gauge_token_name)
 
             getBalance("balance before gauge.withdraw()", reward_token_evm, old_staking_account, reward_token_address_name)
             getBalance("balance before gauge.withdraw()", lp_token_evm, old_staking_account, old_lp_token_name) 
-            gauge_evm.withdraw(100 * 10**18, {'from': accounts[0]} )
-            getBalance("balance after gauge.withdraw()", lp_token_evm, accounts[0], lp_token_name)
-            getBalance("balance after gauge.withdraw()", gauge_evm, accounts[0], gauge_token_name)
+            gauge_evm.withdraw(1 * 10**18, {'from': lp_account} )
+            getBalance("balance after gauge.withdraw()", lp_token_evm, lp_account, lp_token_name)
+            getBalance("balance after gauge.withdraw()", gauge_evm, lp_account, gauge_token_name)
   
         if day == 12:
             # withdraw the rest of lp
-            getBalance("balance before gauge.withdraw()", lp_token_evm, accounts[0], lp_token_name)
-            getBalance("balance before gauge.withdraw()", gauge_evm, accounts[0], gauge_token_name)
-            gauge_evm.withdraw(50 * 10**18, {'from': accounts[0]} )
-            getBalance("balance after gauge.withdraw()", lp_token_evm, accounts[0], lp_token_name)
-            getBalance("balance after gauge.withdraw()", gauge_evm, accounts[0], gauge_token_name)
-
+            getBalance("balance before gauge.withdraw()", lp_token_evm, lp_account, lp_token_name)
+            getBalance("balance before gauge.withdraw()", gauge_evm, lp_account, gauge_token_name)
+            gauge_evm.withdraw(5 * 10**18, {'from': lp_account} )
+            getBalance("balance after gauge.withdraw()", lp_token_evm, lp_account, lp_token_name)
+            getBalance("balance after gauge.withdraw()", gauge_evm, lp_account, gauge_token_name)
 
         # claimed_reward = gauge_evm.claimed_reward(accounts[0], reward_token)/10**18
         # print(f"claimed_reward() {claimed_reward}")
 
-def withdraw_reward_old_staking(mode, gauge, old_lp_token, old_reward_token ):
+
+def convex_old_staking(old_lp_token, old_lp_whale, after_vote):
+    
+    cvx_steth_pool = Contract("0x0A760466E1B4621579a82a39CB56Dda2F4E70f03")
+    cvx_boster = Contract("0xF403C135812408BFbE8713b5A23a04b3D48AAE31")
+    ExtraRewardStashV2 = Contract("0x9710fD4e5CA524f1049EbeD8936c07C81b5EAB9f")
+    old_lp_token_evm = Contract(old_lp_token)
+    crv_evm = Contract("0xD533a949740bb3306d119CC777fa900bA034cd52")
+    old_reward_token_evm =  Contract(old_reward_token)
+    reward_token_address_evm = Contract(reward_token_address)
+
+
+    if after_vote == False:
+
+        lp_amount = 200 * 10**18
+
+        lp_account = accounts.at(old_lp_whale, force=True) 
+
+        old_lp_token_evm.approve(cvx_boster, 300 * 10**18, {'from': lp_account} )
+        '''
+        getBalance("balance before cvx_boster.deposit(25, {lp_amount})", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_boster.deposit( 25, lp_amount, 1, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.deposit()", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+        '''
+
+        full_amount = getBalance("balance before cvx_boster.depositAll(25, 1)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_boster.depositAll( 25, 1, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.depositAll(25)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+        chain.sleep(86400 * 1)
+
+        getBalance("balance before cvx_steth_pool.withdrawAndUnwrap", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_steth_pool.withdrawAndUnwrap(full_amount, 1, { 'from': lp_account } )
+        getBalance("balance after cvx_steth_pool.withdrawAndUnwrap", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+
+        '''
+        getBalance("balance before cvx_boster.withdrawAll(25)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_boster.withdrawAll( 25, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.withdrawAll(25)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+
+        getBalance("balance before cvx_boster.withdraw()", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        cvx_boster.withdraw( 25, lp_amount, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.withdraw()", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        '''
+ 
+    
+    print(f"cvx_steth_pool: {cvx_steth_pool}")
+
+    extraRewards = cvx_steth_pool.extraRewards(0)
+    print(f"cvx_steth_pool.extraRewards(0): {extraRewards}")
+
+    extraRewardsLength = cvx_steth_pool.extraRewardsLength()
+    print(f"cvx_steth_pool.extraRewardsLength(): {extraRewardsLength}")
+
+    print(f"ExtraRewardStashV2: {ExtraRewardStashV2}")
+    tokenCount = ExtraRewardStashV2.tokenCount()
+    print(f"ExtraRewardStashV2.tokenCount()): {tokenCount}")
+
+    tokenInfo = ExtraRewardStashV2.tokenInfo(0)
+    print(f"ExtraRewardStashV2.tokenInfo(0)): {tokenInfo}")
+
+    print(f"cvx_boster: {cvx_boster}")
+
+    poolInfo = cvx_boster.poolInfo(25)
+    print(f"cvx_boster.poolInfo(25): {poolInfo}")
+    print(f"cvx_boster.poolInfo(25).stash: {poolInfo[4]}")
+
+    print(f"call cvx_boster.earmarkRewards(25)")
+
+    tx = cvx_boster.earmarkRewards(25, {'from': accounts[0]})
+    print(*tx.events, sep='\n')
+
+    poolInfo = cvx_boster.poolInfo(25)
+    print(f"cvx_boster.poolInfo(25): {poolInfo}")
+    print(f"cvx_boster.poolInfo(25).stash: {poolInfo[4]}")
+
+    extraRewards = cvx_steth_pool.extraRewards(0)
+    print(f"cvx_steth_pool.extraRewards(0): {extraRewards}")
+
+    if after_vote == True:
+        extraRewards = cvx_steth_pool.extraRewards(1)
+        print(f"cvx_steth_pool.extraRewards(1): {extraRewards}")
+
+        extraRewardsLength = cvx_steth_pool.extraRewardsLength()
+        print(f"cvx_steth_pool.extraRewardsLength(): {extraRewardsLength}")
+
+    tokenCount = ExtraRewardStashV2.tokenCount()
+    print(f"ExtraRewardStashV2.tokenCount()): {tokenCount}")
+
+    tokenInfo = ExtraRewardStashV2.tokenInfo(0)
+    print(f"ExtraRewardStashV2.tokenInfo(0)): {tokenInfo}")
+    
+    if after_vote == True:
+
+        tokenInfo = ExtraRewardStashV2.tokenInfo(1)
+        print(f"ExtraRewardStashV2.tokenInfo(1)): {tokenInfo}")
+
+    if after_vote == True:
+
+        # send reward token
+        amount = 50 * 10**18
+
+        reward_token_evm = Contract(reward_token_address)
+        reward_token_evm.approve(gauge_old, amount, {'from': distributor_address} )
+        reward_token_evm.transfer(CurveLiquidityFarmingManagerEvm, amount, {'from': distributor_address})
+        
+        StakingRewardsEvm.setRewardsDuration(86400*7, {'from': distributor_address} )
+
+        CurveLiquidityFarmingManagerEvm.start_next_rewards_period(  {'from': distributor_address}  )
+
+        lp_amount = 200 * 10**18
+
+        lp_account = accounts.at(old_lp_whale, force=True) 
+
+        old_lp_token_evm.approve(cvx_boster, 300 * 10**18, {'from': lp_account} )
+        '''
+        getBalance("balance before cvx_boster.deposit(25, {lp_amount})", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_boster.deposit( 25, lp_amount, 1, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.deposit()", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+        '''
+        
+        full_amount = getBalance("balance before cvx_boster.depositAll(25, 1)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        tx = cvx_boster.depositAll( 25, 1, { 'from': lp_account } )
+        getBalance("balance after cvx_boster.depositAll(25)", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+
+        print(*tx.events, sep='\n')
+
+        cvx_boster.earmarkRewards(25, {'from': accounts[0]})
+        tx = cvx_boster.earmarkRewards(25, {'from': accounts[0]})
+        print(*tx.events, sep='\n')
+
+        tokenInfo = ExtraRewardStashV2.tokenInfo(1)
+        print(f"ExtraRewardStashV2.tokenInfo(1)): {tokenInfo}")
+
+
+        chain.sleep(86400 * 7)
+
+        getBalance("balance before cvx_steth_pool.withdrawAndUnwrap()", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        getBalance("balance before cvx_steth_pool.withdrawAndUnwrap()", crv_evm, old_lp_whale, "CRV")
+        getBalance("balance before cvx_steth_pool.withdrawAndUnwrap()", old_reward_token_evm, old_lp_whale, old_reward_token_name)
+        getBalance("balance before cvx_steth_pool.withdrawAndUnwrap()", reward_token_address_evm, old_lp_whale, reward_token_address_name)
+
+        tx = cvx_steth_pool.withdrawAndUnwrap(full_amount, 1, { 'from': lp_account } )
+
+        getBalance("balance after cvx_steth_pool.withdrawAndUnwrap", old_lp_token_evm, old_lp_whale, old_lp_token_name)
+        getBalance("balance after cvx_steth_pool.withdrawAndUnwrap()", crv_evm, old_lp_whale, "CRV")
+        getBalance("balance after cvx_steth_pool.withdrawAndUnwrap()", old_reward_token_evm, old_lp_whale, old_reward_token_name)
+        getBalance("balance after cvx_steth_pool.withdrawAndUnwrap()", reward_token_address_evm, old_lp_whale, reward_token_address_name)
+
+        
+
+        print(*tx.events, sep='\n')
+
+
+        
+
+def withdraw_reward_old_staking(mode, gauge, old_lp_token, old_reward_token):
 
     '''
     0x7568650de016ef3c9718fd5eb57e8c274d709567 : 16205837785234663607
@@ -599,45 +835,53 @@ def simulate():
         holders = [VECRV_WHALE]
     
     top_holder = holders[0]
-
+    
     vote_id = make_vote(top_holder)
 
     # vote
+
+    # convex_old_staking(old_lp_token, old_lp_whale, after_vote = False)
+    
     aragon = Contract(TARGET["voting"])
     for acct in holders:
         aragon.vote(vote_id, True, False, {"from": acct})
-    '''
-    print(f"Start withdraw_reward before change ####################################### \n")
-    withdraw_reward_old_staking('before', gauge_old, old_lp_token, old_reward_token)
-    print(f"End withdraw_reward before change ####################################### \n")
-    '''
+    
     # sleep for a week so it has time to pass
     chain.sleep(86400 * 7)
 
     # moment of truth - execute the vote!
     aragon.executeVote(vote_id, {"from": top_holder})
+    
+
+    convex_old_staking(old_lp_token, old_lp_whale, after_vote = True)
+
+    sys.exit()
 
     print(f"Start withdraw_reward_old_staking() after ####################################### \n")
-    withdraw_reward_old_staking('after', gauge_old, old_lp_token, old_reward_token)
+    # withdraw_reward_old_staking('after', gauge_old, old_lp_token, old_reward_token)
     print(f"End withdraw_reward_old_staking() after  ####################################### \n")
 
     # stETH old
+    
     print(f"Start test stETH old (ETH/stETH) pool ####################################### \n")
     start_steth_old(gauge_old, reward_token_address, distributor_address, old_lp_token, old_lp_whale, StakingRewardsEvm, CurveLiquidityFarmingManagerEvm)
     print(f"End test stETH old (ETH/stETH) pool ####################################### \n")
     
     print(f"Start withdraw_reward_old_staking() after new ####################################### \n")
-    withdraw_reward_old_staking('after new', gauge_old, old_lp_token, old_reward_token)
+    # withdraw_reward_old_staking('after new', gauge_old, old_lp_token, old_reward_token)
     print(f"End withdraw_reward_old_staking() after new ####################################### \n")
-
 
     # stETH new
     print(f"Start test reward stETH-ng (ETH/stETH) pool ####################################### \n")
-    test_farm_token(gauge_ng, reward_token_address, distributor_address, ng_lp_token, ng_lp_whale)
+    # 0xaD3d0a6868124F3f28fc746132Bc32608f0E6a60 has unstaked lp token
+    #test_farm_token(gauge_ng, reward_token_address, distributor_address, ng_lp_token, ng_lp_whale, "0xaD3d0a6868124F3f28fc746132Bc32608f0E6a60")
+    # 0x4d6DF8cdBD27461c968C76c3F278f6749afFa541 has token in gauge
+    test_farm_token(gauge_ng, reward_token_address, distributor_address, ng_lp_token, ng_lp_whale, "0x4d6DF8cdBD27461c968C76c3F278f6749afFa541")
+    
     print(f"End test reward stETH-ng (ETH/stETH) pool ####################################### \n")
 
     # tricryptolama
     print(f"Start test reward TricryptoLLAMA (crvUSD/tBTC/wstETH) pool ####################################### \n")
-    test_farm_token(gauge_tricryptolama, reward_token_address, distributor_address, tricryptolama_lp_token, tricryptolama_lp_whale)
+    #test_farm_token(gauge_tricryptolama, reward_token_address, distributor_address, tricryptolama_lp_token, tricryptolama_lp_whale, tricryptolama_lp_whale)
     print(f"End test reward TricryptoLLAMA (crvUSD/tBTC/wstETH) pool ####################################### \n")
 

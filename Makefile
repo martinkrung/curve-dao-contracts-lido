@@ -1,5 +1,10 @@
 all:
 
+start_env:
+	# source will not work, but this is for cmd documentation
+	source .env
+	source .venv/bin/activate
+
 delete_networks:
 	brownie networks delete mainnet
 	brownie networks delete hardhat-fork-curve
@@ -11,8 +16,15 @@ delete_networks:
 import_networks:
 	brownie networks import brownie-config.yaml
 
+add_frame_networks:
+	# https://medium.com/@wormhole_5348/create-a-curve-dao-vote-using-a-ledger-wallet-a55a1825d212
+	brownie networks add Ethereum frame host=http://127.0.0.1:1248 chainid=1 explorer=https://api.etherscan.io/api name=Frame
+
 mainnet_reward:
 	brownie run scripts/voting/new_vote_stETH-ETH_reward.py simulate --network hardhat-fork-curve
+
+mainnet_real:
+	brownie run scripts/voting/new_vote_stETH-ETH_reward.py make_vote --network frame
 
 mainnet_decode:
 	brownie run scripts/voting/decode_vote.py --network hardhat-fork-curve
